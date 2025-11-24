@@ -28,6 +28,7 @@ parser.add_argument('-V', '--version', action='version', version=f'SSTImap versi
 parser.add_argument("--module", dest="module", help="Provide information about the module ('list' to show all modules)")
 parser.add_argument("--config", dest="config", help="Use custom config file or directory")
 parser.add_argument("--no-color", action="store_const", const=False, dest="colour", help="Disable color in output")
+parser.add_argument("-o", "--output", dest="output", help="Write JSON scan summary to file")
 
 
 target = parser.add_argument_group(title="target",

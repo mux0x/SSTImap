@@ -154,6 +154,8 @@ Developers assume no liability and are not responsible for any misuse or damage 
     --download REMOTE LOCAL      Download remote files
 ```
 
+Add `-o report.json` if you need SSTImap to store the scan summary in JSON for later processing or reporting purposes.
+
 Use `--os-shell` option to launch a pseudo-terminal on the target.
 
 ```

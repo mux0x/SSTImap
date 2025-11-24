@@ -42,6 +42,7 @@ defaults = {
     "boolean_match_min": 7,
     "boolean_fuzzy": [0.05, 0.1],
     "boolean_samples": [10, 1, 200],
+    "output": None,
 }
 config = {}
 user_config = {}

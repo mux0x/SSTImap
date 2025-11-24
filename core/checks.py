@@ -171,6 +171,112 @@ def print_injection_summary(channel):
 """)
 
 
+def _serialize_targets(args):
+    targets = []
+    target_urls = args.get('target_urls')
+    if target_urls:
+        targets.extend(sorted(target_urls))
+    elif args.get('url'):
+        targets.append(args.get('url'))
+    return targets
+
+
+def _serialize_forms(forms):
+    if not forms:
+        return []
+    serialized = []
+    for form in forms:
+        serialized.append({
+            "url": form[0],
+            "method": form[1] if len(form) > 1 else None,
+            "data": form[2] if len(form) > 2 else None
+        })
+    return serialized
+
+
+def _build_vulnerability_payload(channel):
+    injection = channel.injs[channel.inj_idx] if channel.injs and channel.inj_idx < len(channel.injs) else {}
+    prefix = channel.data.get('prefix') or ''
+    render_template = channel.data.get('render') or '{code}'
+    suffix = channel.data.get('suffix') or ''
+    wrapper_template = channel.data.get('wrapper') or '{code}'
+    wrapper = wrapper_template.format(code=render_template.format(code='*'))
+    if channel.data.get('blind'):
+        technique = "time-based blind"
+    elif channel.data.get('boolean'):
+        technique = "boolean error-based blind"
+    elif channel.data.get('error'):
+        technique = "error-based"
+    else:
+        technique = "rendered"
+    context = "text" if (not prefix and not suffix) else "code"
+    return {
+        "target": channel.args.get('url'),
+        "http_method": getattr(channel, 'http_method', None),
+        "engine": channel.data.get('engine'),
+        "language": channel.data.get('language'),
+        "os": channel.data.get('os', 'undetected'),
+        "technique": technique,
+        "context": context,
+        "injection_point": {
+            "field": injection.get('field'),
+            "parameter": injection.get('param'),
+            "part": injection.get('part'),
+            "index": injection.get('idx'),
+            "value": injection.get('value')
+        },
+        "injection_wrapper": {
+            "prefix": prefix,
+            "wrapper": wrapper,
+            "suffix": suffix
+        },
+        "capabilities": {
+            "execute": bool(channel.data.get('execute')),
+            "execute_blind": bool(channel.data.get('execute_blind')),
+            "evaluate": bool(channel.data.get('evaluate')),
+            "evaluate_blind": bool(channel.data.get('evaluate_blind')),
+            "write": bool(channel.data.get('write')),
+            "read": bool(channel.data.get('read')),
+            "bind_shell": bool(channel.data.get('bind_shell')),
+            "reverse_shell": bool(channel.data.get('reverse_shell'))
+        },
+        "detection": {
+            "blind": bool(channel.data.get('blind')),
+            "boolean": bool(channel.data.get('boolean')),
+            "error": bool(channel.data.get('error'))
+        }
+    }
+
+
+def export_scan_result(args, channel=None):
+    output_path = args.get('output')
+    if not output_path:
+        return
+    payload = {
+        "success": False,
+        "targets": _serialize_targets(args),
+        "forms": _serialize_forms(args.get('target_forms')),
+        "vulnerabilities": []
+    }
+    if channel and channel.data.get('engine'):
+        payload["success"] = True
+        payload["vulnerabilities"].append(_build_vulnerability_payload(channel))
+    output_path = os.path.expanduser(output_path)
+    directory = os.path.dirname(output_path)
+    if directory:
+        try:
+            os.makedirs(directory, exist_ok=True)
+        except Exception as e:
+            log.log(22, f"Error creating directory for JSON output '{output_path}':\n{repr(e)}")
+            return
+    try:
+        with open(output_path, 'w') as stream:
+            json.dump(payload, stream, indent=2)
+        log.log(21, f"Saved JSON output to file: {output_path}")
+    except Exception as e:
+        log.log(22, f"Error occurred while writing JSON output:\n{repr(e)}")
+
+
 def detect_template_injection(channel):
     for i in range(len(channel.injs)):
         log.log(28, f"Testing if {channel.injs[channel.inj_idx]['field']} parameter '{channel.injs[channel.inj_idx]['param']}' is injectable")
@@ -411,6 +517,7 @@ def scan_website(args):
     args['target_forms'] = forms
     if not urls and not forms:
         log.log(22, 'No targets found')
+        export_scan_result(args)
         return None, None
     elif not forms:
         for url in urls:
@@ -420,6 +527,7 @@ def scan_website(args):
             channel = Channel(url_args)
             result = check_template_injection(channel)
             if channel.data.get('engine'):
+                export_scan_result(args, channel)
                 return result, channel # TODO: save vulnerabilities
     else:
         for form in forms:
@@ -431,5 +539,7 @@ def scan_website(args):
             channel = Channel(url_args)
             result = check_template_injection(channel)
             if channel.data.get('engine'):
+                export_scan_result(args, channel)
                 return result, channel # TODO: save vulnerabilities
+    export_scan_result(args)
     return None, None
