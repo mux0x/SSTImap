@@ -43,6 +43,8 @@ defaults = {
     "boolean_fuzzy": [0.05, 0.1],
     "boolean_samples": [10, 1, 200],
     "output": None,
+    "target_list": None,
+    "threads": 1,
 }
 config = {}
 user_config = {}

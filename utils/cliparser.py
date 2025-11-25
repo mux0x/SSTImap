@@ -29,6 +29,10 @@ parser.add_argument("--module", dest="module", help="Provide information about t
 parser.add_argument("--config", dest="config", help="Use custom config file or directory")
 parser.add_argument("--no-color", action="store_const", const=False, dest="colour", help="Disable color in output")
 parser.add_argument("-o", "--output", dest="output", help="Write JSON scan summary to file")
+parser.add_argument("-l", "--list", dest="target_list",
+                    help="File with newline-separated targets to scan (one URL per line)")
+parser.add_argument("-t", "--threads", dest="threads", type=int,
+                    help="Number of concurrent threads when scanning multiple targets (default 1)")
 
 
 target = parser.add_argument_group(title="target",
@@ -84,7 +88,7 @@ crawler.add_argument("--save-forms", dest="save_forms", help="File or directory 
 
 detection = parser.add_argument_group(title="detection",
                                       description="These options can be used to customize the detection phase.")
-detection.add_argument("-l", "--level", dest="level", type=int,
+detection.add_argument("-g", "--level", dest="level", type=int,
                        help="Level of escaping to perform (1-5, Default: 1)")
 detection.add_argument("-L", "--force-level", dest="force_level", metavar=("LEVEL", "CLEVEL",),
                        help="Force a LEVEL and CLEVEL to test", nargs=2, type=int)

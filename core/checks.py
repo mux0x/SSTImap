@@ -1,3 +1,4 @@
+import concurrent.futures
 import json
 import os
 from urllib import parse
@@ -9,6 +10,7 @@ from core.tcpclient import TcpClient
 from utils.crawler import crawl, find_forms
 from core.channel import Channel
 from core.matcher import profile
+import traceback
 
 
 def module_info(line):
@@ -171,6 +173,30 @@ def print_injection_summary(channel):
 """)
 
 
+def _load_targets_from_file(path):
+    targets = set()
+    if not path:
+        return targets
+    file_path = os.path.expanduser(path)
+    if not os.path.exists(file_path):
+        log.log(22, f"Target list file not found: {file_path}")
+        return targets
+    if os.path.isdir(file_path):
+        log.log(22, f"Target list path is a directory, expected file: {file_path}")
+        return targets
+    try:
+        with open(file_path, 'r') as stream:
+            for line in stream:
+                target = line.strip()
+                if not target or target.startswith('#'):
+                    continue
+                targets.add(target)
+        log.log(21, f"Loaded {len(targets)} target(s) from file: {file_path}")
+    except Exception as e:
+        log.log(22, f"Error occurred while loading targets from file:\n{repr(e)}")
+    return targets
+
+
 def _serialize_targets(args):
     targets = []
     target_urls = args.get('target_urls')
@@ -275,6 +301,50 @@ def export_scan_result(args, channel=None):
         log.log(21, f"Saved JSON output to file: {output_path}")
     except Exception as e:
         log.log(22, f"Error occurred while writing JSON output:\n{repr(e)}")
+
+
+def _scan_single_url(args, url):
+    log.log(27, f'Scanning url: {url}')
+    local_args = args.copy()
+    local_args['url'] = url
+    try:
+        channel = Channel(local_args)
+        result = check_template_injection(channel)
+        return result, channel
+    except Exception as e:
+        log.log(22, f"Error occurred while scanning {url}:\n{repr(e)}")
+        log.debug(traceback.format_exc())
+        return None, None
+
+
+def _scan_urls(urls, args):
+    threads = args.get('threads') or 1
+    try:
+        threads = int(threads)
+    except (ValueError, TypeError):
+        threads = 1
+    threads = max(1, threads)
+    ordered_urls = list(urls)
+    if threads == 1 or len(ordered_urls) == 1:
+        for url in ordered_urls:
+            result, channel = _scan_single_url(args, url)
+            if channel and channel.data.get('engine'):
+                return result, channel
+        return None, None
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=threads)
+    futures = {executor.submit(_scan_single_url, args, url): url for url in ordered_urls}
+    found = None
+    try:
+        for future in concurrent.futures.as_completed(futures):
+            result, channel = future.result()
+            if channel and channel.data.get('engine'):
+                found = (result, channel)
+                break
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+    if found:
+        return found
+    return None, None
 
 
 def detect_template_injection(channel):
@@ -453,6 +523,8 @@ def check_template_injection(channel):
 def scan_website(args):
     urls = set()
     forms = set()
+    file_targets = _load_targets_from_file(args.get('target_list'))
+    urls.update(file_targets)
     single_url = args.get('url', None)
     if single_url:
         urls.add(single_url)
@@ -520,15 +592,10 @@ def scan_website(args):
         export_scan_result(args)
         return None, None
     elif not forms:
-        for url in urls:
-            log.log(27, f'Scanning url: {url}')
-            url_args = args.copy()
-            url_args['url'] = url
-            channel = Channel(url_args)
-            result = check_template_injection(channel)
-            if channel.data.get('engine'):
-                export_scan_result(args, channel)
-                return result, channel # TODO: save vulnerabilities
+        result, channel = _scan_urls(sorted(urls), args)
+        if channel and channel.data.get('engine'):
+            export_scan_result(args, channel)
+            return result, channel # TODO: save vulnerabilities
     else:
         for form in forms:
             log.log(27, f'Scanning form with url: {form[0]}')

@@ -156,6 +156,8 @@ Developers assume no liability and are not responsible for any misuse or damage 
 
 Add `-o report.json` if you need SSTImap to store the scan summary in JSON for later processing or reporting purposes.
 
+Supply a newline-separated targets file with `-l targets.txt` (each line should be a URL) and optionally tune concurrency with `-t 5` to check multiple targets simultaneously.
+
 Use `--os-shell` option to launch a pseudo-terminal on the target.
 
 ```
