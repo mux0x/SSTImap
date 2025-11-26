@@ -123,7 +123,7 @@ detection.add_argument("--run", dest="run", action="store_const", const=True,
 payload = parser.add_argument_group(title="payload",
                                     description="These options can be used to get access to the template engine, "
                                                 "filesystem or OS shell after an attack.")
-payload.add_argument("-t", "--tpl-shell", dest="tpl_shell", action="store_const", const=True,
+payload.add_argument("--tpl-shell", dest="tpl_shell", action="store_const", const=True,
                      help="Prompt for an interactive shell on the template engine")
 payload.add_argument("-T", "--tpl-code", dest="tpl_code",
                      help="Inject code in the template engine")
